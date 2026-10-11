@@ -61,6 +61,8 @@ node "$HOME/.agents/skills/boss-kb/scripts/install.mjs" --kb "<你的知识库�
 
 预演没问题，去掉 `--dry-run` 再跑一次。详细说明和卸载见 [references/安装与全局规则.md](references/安装与全局规则.md)。
 
+用 `git clone` 装的，卸载就两步：删掉全局规则文件（Codex 是 `~/.codex/AGENTS.md`，Claude Code 是 `~/.claude/CLAUDE.md`）里 `<!-- boss-kb 老板知识库 开始 -->` 到 `<!-- boss-kb 老板知识库 结束 -->` 这一段，再删掉 `boss-kb` 这个文件夹。你的知识库一个文件都不会动。
+
 ## 常用说法
 
 | 你说 | 它做什么 |

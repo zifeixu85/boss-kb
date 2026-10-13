@@ -1563,7 +1563,7 @@ test("C27 C13 C17 C46 C52 C68 C69 C115 init 生成的说明：采访骨架、01 
   assert.match(cust, /生日、口味、送礼对象可以记/);
   assert.match(cust, /往来记录只追加，一行一条：`- 日期｜渠道｜说了什么；答应：…（没有写“无”）；来源：…`/);
   for (const id of LAYER_IDS) assert.match(readText(root, `${id}/README.md`), /索引的“一句话”只写稳定的定位（是谁、怎么来的、做哪类事）/, id);
-  assert.match(readText(root, "06-项目/README.md"), /`- \[ \] 事项 · 截止 2026-10-30 · 关联 客户或项目名`/);
+  assert.match(readText(root, "06-项目/README.md"), /`- \[ \] 事项 · 截止 2026-10-30 · 谁做 小周 · 关联 客户或项目名`/);
   assert.match(readText(root, "99-原始材料/README.md"), /`交接与建议\/`/);
   assert.match(readText(root, "99-原始材料/README.md"), /`改稿\/`/);
   assert.match(readText(root, "99-原始材料/README.md"), /资料地图/);

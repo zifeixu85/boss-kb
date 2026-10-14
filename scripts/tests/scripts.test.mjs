@@ -327,15 +327,17 @@ test("就地建图：新建的标准层缺元信息是错误，老板原有文�
   rmSync(root, { recursive: true });
 });
 
-test("就地建图：老板原有文件里的手机号只提醒（不改原文件），AI 写的新文件里照样报错", () => {
+test("就地建图：老板原有文件里的手机号不查；AI 写的新文件没标私密时提醒标私密，不报错", () => {
   const root = tmp();
   write(root, "客户资料/张总.md", "张总 13812345678");
   runInit(root, { date: "2026-10-20", map: { "04-客户": "客户资料" } });
   const first = checkKnowledgeBase(root);
   assert.ok(!first.errors.some((e) => e.includes("张总.md")), first.errors.join("\n"));
-  assert.ok(first.warnings.some((w) => w.includes("原件里有手机号") && w.includes("客户资料/张总.md")));
+  assert.ok(!first.warnings.some((w) => w.includes("手机号")), first.warnings.join("\n"));
   write(root, "客户资料/张总-往来记录.md", note(base({ 类型: "往来记录", 名称: "张总" }), "张总新号码 13912345678"));
-  assert.ok(checkKnowledgeBase(root).errors.some((e) => e.includes("疑似手机号：客户资料/张总-往来记录.md")));
+  const second = checkKnowledgeBase(root);
+  assert.ok(!second.errors.some((e) => e.includes("张总-往来记录.md")), second.errors.join("\n"));
+  assert.ok(second.warnings.includes("有手机号，这份没标私密：客户资料/张总-往来记录.md"), second.warnings.join("\n"));
   rmSync(root, { recursive: true });
 });
 
@@ -430,7 +432,7 @@ test("体检：类型不在清单里只提醒；stats 按类型计数", () => {
   rmSync(root, { recursive: true });
 });
 
-test("体检：原件层的手机号只提醒，其他层报错；密钥的否定说法不报", () => {
+test("体检：原件层的手机号、身份证号不查；整理稿里照实记，没标私密只提醒；密码报错，密钥的否定说法不报", () => {
   const root = tmp();
   runInit(root, { date: "2026-10-20" });
   write(root, "00-收件箱/2026-10-21-张总-微信.md", "张总：我电话 13812345678");
@@ -438,12 +440,15 @@ test("体检：原件层的手机号只提醒，其他层报错；密钥的否�
   write(root, "01-AI协作/工具与账号.md", note(base({ 类型: "工具与账号" }), "公众号后台密码：不存在这里\n抖店密码: 不放在知识库"));
   const first = checkKnowledgeBase(root);
   assert.deepEqual(first.errors, []);
-  assert.ok(first.warnings.some((w) => w.includes("原件里有手机号") && w.includes("00-收件箱")));
-  assert.ok(first.warnings.some((w) => w.includes("原件里有身份证号") && w.includes("99-原始材料")));
+  assert.ok(!first.warnings.some((w) => /手机号|身份证号/.test(w)), first.warnings.join("\n"));
   write(root, "04-客户/甲公司.md", customer("甲公司", { 名称: "甲公司" }).replace("正文。", "电话 13812345678"));
   write(root, "01-AI协作/协作偏好.md", note(base({ 类型: "协作偏好" }), "后台密码: abc12345"));
   const second = checkKnowledgeBase(root);
-  assert.ok(second.errors.some((e) => e.includes("疑似手机号") && e.includes("04-客户")));
+  assert.ok(!second.errors.some((e) => e.includes("04-客户")), second.errors.join("\n"));
+  assert.ok(second.warnings.includes("有手机号，这份没标私密：04-客户/甲公司.md"), second.warnings.join("\n"));
+  write(root, "04-客户/乙公司.md", customer("乙公司", { 名称: "乙公司", 隐私: "私密" }).replace("正文。", "电话 13812345678，身份证 110101199001011234"));
+  const third = checkKnowledgeBase(root).warnings;
+  assert.ok(!third.some((w) => /手机号|身份证号/.test(w) && w.includes("乙公司")), `标了私密的照实记，不提醒：\n${third.join("\n")}`);
   assert.ok(second.errors.some((e) => e.includes("疑似密码或密钥") && e.includes("协作偏好.md")));
   assert.ok(!second.errors.some((e) => e.includes("工具与账号.md")));
   rmSync(root, { recursive: true });
@@ -481,7 +486,7 @@ test("体检：抓出缺字段、取值越界、坏链接、来源不存在、�
   assert.match(all, /缺少字段 分组/);
   assert.match(all, /来源文件不存在/);
   assert.match(all, /链接指向不存在的文件/);
-  assert.match(all, /疑似手机号/);
+  assert.match(result.warnings.join("\n"), /有手机号，这份没标私密：04-客户\/甲公司\.md/);
   assert.match(all, /10-作品库\/ 在磁盘上有，但 AGENTS\.md 地图里没有/);
   assert.match(all, /10-作品库\/ 没写进建库档案/);
   assert.ok(result.warnings.some((w) => w.includes("索引里没有 甲公司.md")));
@@ -1560,7 +1565,7 @@ test("C27 C13 C17 C46 C52 C68 C69 C115 init 生成的说明：采访骨架、01 
     assert.deepEqual(fields(row[2]), OPTIONAL_FIELDS[type] || [], `${type} 的可选`);
   }
   const cust = readText(root, "04-客户/README.md");
-  assert.match(cust, /生日、口味、送礼对象可以记/);
+  assert.match(cust, /照实记：联系人、电话、地址、开票信息、生日、口味、送礼对象都可以；有联系方式、证件这类个人信息的文件标私密/);
   assert.match(cust, /往来记录只追加，一行一条：`- 日期｜渠道｜说了什么；答应：…（没有写“无”）；来源：…`/);
   for (const id of LAYER_IDS) assert.match(readText(root, `${id}/README.md`), /索引的“一句话”只写稳定的定位（是谁、怎么来的、做哪类事）/, id);
   assert.match(readText(root, "06-项目/README.md"), /`- \[ \] 事项 · 截止 2026-10-30 · 谁做 小周 · 关联 客户或项目名`/);
@@ -1692,13 +1697,14 @@ test("C64 表格：机读表错列报错，普通表错列提醒，格子里的 
   rmSync(root, { recursive: true });
 });
 
-test("C64 C28 银行卡号：带“卡号”的报错、原件只提醒；Luhn 不过的订单号不报；没上下文的只提醒", () => {
+test("C64 C28 银行卡号：照实记，整理稿没标私密只提醒；Luhn 不过的订单号不报；原件不查", () => {
   const root = tmp();
   runInit(root, { date: "2026-10-20" });
   write(root, "04-客户/甲公司.md", customer("甲公司").replace("正文。", "对公卡号 4111 1111 1111 1111"));
   write(root, "03-生意/生意总览.md", note(base({ 类型: "生意" }), "订单 2026102512345678 已发货"));
   const first = checkKnowledgeBase(root);
-  assert.ok(first.errors.includes("疑似银行卡号：04-客户/甲公司.md"), first.errors.join("\n"));
+  assert.ok(!has(first.errors, /甲公司/), first.errors.join("\n"));
+  assert.ok(first.warnings.includes("有银行卡号，这份没标私密：04-客户/甲公司.md"), first.warnings.join("\n"));
   assert.ok(!has([...first.errors, ...first.warnings], /银行卡号.*生意总览/), "Luhn 不过的订单号不报");
   write(root, "03-生意/生意总览.md", note(base({ 类型: "生意" }), "单号 4111111111111111 已发货"));
   const second = checkKnowledgeBase(root);
@@ -1707,7 +1713,7 @@ test("C64 C28 银行卡号：带“卡号”的报错、原件只提醒；Luhn �
   write(root, "00-收件箱/2026-10-21-甲公司-微信.md", "打到这张卡号 6222 0212 3456 7890 128");
   const third = checkKnowledgeBase(root);
   assert.ok(!has(third.errors, /00-收件箱/));
-  assert.ok(has(third.warnings, /原件里有疑似银行卡号.*00-收件箱/), third.warnings.join("\n"));
+  assert.ok(!has(third.warnings, /银行卡号.*00-收件箱/), third.warnings.join("\n"));
   rmSync(root, { recursive: true });
 });
 
@@ -2303,7 +2309,7 @@ test("R6-3 只读文件夹的原件：connect 时改了、删了、新加了只�
   assert.ok(!has(errors, /日记\//), errors.join("\n"));
   for (const p of ["日记/2026-10-01.md", "日记/2026-10-02.md"]) assert.ok(warnings.includes(`${p} 有变化——它在只读文件夹里，老板还在用的话，正常`), warnings.join("\n"));
   assert.ok(warnings.includes("日记/ 里有 1 份接入以后新加的文件（如 日记/2026-10-21.md）——它在只读文件夹里，老板还在用的话，正常；老板说是自己加的，用 init.mjs --refresh-originals 日记 重新登记"), warnings.join("\n"));
-  assert.ok(has(warnings, /原件里有手机号.*日记\/2026-10-21\.md/), "只读文件夹里新加的当老板的原件：手机号只提醒");
+  assert.ok(!has(warnings, /手机号.*日记\//), "只读文件夹里新加的当老板的原件：手机号不查");
   const plain = checkKnowledgeBase(root);
   assert.ok(!has(plain.errors, /日记\//));
   assert.ok(plain.warnings.includes("日记/2026-10-01.md 有变化——它在只读文件夹里，老板还在用的话，正常"));

@@ -410,19 +410,19 @@ test("问题：体检结果一条一条列；纯格式的（字段、日期、�
   assert.equal(moved.confirm, false, "来源能找到新位置的，直接改");
   assert.match(moved.suggest, /99-原始材料\/聊天与通话\/2026-10-01-老客甲-微信\.md/);
   assert.equal(one(/来源文件不存在：03-生意\/壬\.md/).confirm, true, "找不到新位置的要问");
-  for (const re of [/疑似手机号：04-客户\/老客甲\.md/, /“隐私”只能是/, /快速版建议至少 3 个/, /还没有判断样本/, /建库档案的“类型画像”还是空的/, /AGENTS\.md 还有 \d+ 处没填的占位/]) {
+  for (const re of [/有手机号，这份没标私密：04-客户\/老客甲\.md/, /“隐私”只能是/, /快速版建议至少 3 个/, /还没有判断样本/, /建库档案的“类型画像”还是空的/, /AGENTS\.md 还有 \d+ 处没填的占位/]) {
     assert.equal(one(re).confirm, true, `${re} 要你确认：\n${shown()}`);
   }
-  assert.deepEqual(one(/疑似手机号/).paths, ["04-客户/老客甲.md"]);
-  assert.equal(one(/疑似手机号/).kind, "敏感信息");
+  assert.deepEqual(one(/这份没标私密/).paths, ["04-客户/老客甲.md"]);
+  assert.equal(one(/这份没标私密/).kind, "敏感信息");
   const check = res.categories.problems.check;
   assert.equal(check.counted, problems.filter((i) => !["断链", "隐私对不上"].includes(i.kind)).length);
   assert.equal(res.counts.problems, problems.length);
   // 报告：手机号、缺内容在“要你确认的”，冒号在“我可以直接改的”
   const { direct, confirm } = reportParts(res, "问题");
   assert.match(direct, /开头元信息要用英文冒号/);
-  assert.doesNotMatch(direct, /疑似手机号|快速版建议至少 3 个|还没有判断样本/);
-  assert.match(confirm, /疑似手机号/);
+  assert.doesNotMatch(direct, /这份没标私密|快速版建议至少 3 个|还没有判断样本/);
+  assert.match(confirm, /这份没标私密/);
   assert.match(confirm, /快速版建议至少 3 个/);
   assert.doesNotMatch(confirm, /开头元信息要用英文冒号/);
 });

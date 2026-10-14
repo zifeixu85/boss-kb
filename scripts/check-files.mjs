@@ -284,16 +284,18 @@ export function scanFiles(ctx, errors, warnings) {
     const newInReadonly = Boolean(manifest) && Boolean(roFolder) && !onManifest.has(r.normalize("NFC"));
     if (newInReadonly) newReadonly.set(roFolder, [...(newReadonly.get(roFolder) || []), r]);
     const originalFile = manifest ? (onManifest.has(r.normalize("NFC")) && !APPEND_ONLY.includes(r)) || newInReadonly : Boolean(origin) && (!fm || fm["类型"] === undefined);
-    const asIs = raw || originalFile; // 原件：手机号、身份证号、卡号只提醒，整理时别抄进整理稿
+    const asIs = raw || originalFile; // 原件：照原样放，手机号、证件号、卡号都不查
     // 原件清单里只有路径和哈希，哈希里的数字会被误认成手机号、身份证号
     const scan = r !== MANIFEST;
     const lines = text.split("\n");
     if (scan && lines.some(hasSecret)) errors.push(`疑似密码或密钥：${r}`);
-    if (scan && PHONE.test(text)) (asIs ? warnings.push(`原件里有手机号，整理时不要抄进整理稿：${r}`) : errors.push(`疑似手机号：${r}`));
-    if (scan && ID_CARD.test(text)) (asIs ? warnings.push(`原件里有身份证号，整理时不要抄进整理稿：${r}`) : errors.push(`疑似身份证号：${r}`));
-    const card = scan ? lines.map(bankCardSignal).reduce((a, s) => (a === "strong" || s === "strong" ? "strong" : a || s), null) : null;
-    if (card === "strong") (asIs ? warnings.push(`原件里有疑似银行卡号，整理时不要抄进整理稿：${r}`) : errors.push(`疑似银行卡号：${r}`));
-    else if (card === "weak") warnings.push(`可能是银行卡号（也可能是订单号）：${r}；是卡号就删掉`);
+    // 真实资料照实记（2026-10-15 起：用的是官方模型、存在本地，知识库就要用真实资料才有用）。
+    // 手机号、身份证号、银行卡号不报错；只在整理稿没标私密时提醒一句，免得写进给别人看的东西。原件不查
+    if (scan && !asIs && fm?.["隐私"] !== "私密") {
+      const card = lines.map(bankCardSignal).reduce((a, s) => (a === "strong" || s === "strong" ? "strong" : a || s), null);
+      const found = [PHONE.test(text) && "手机号", ID_CARD.test(text) && "身份证号", card === "strong" ? "银行卡号" : card === "weak" && "疑似银行卡号（也可能是订单号）"].filter(Boolean);
+      if (found.length) warnings.push(`有${found.join("、")}，这份没标私密：${r}`);
+    }
     for (const word of forbid) if (word && text.includes(word)) errors.push(`出现了不该出现的词“${word}”：${r}`);
     if (!checkupFile) {
       // 只看正文：开头元信息里的双链按“来源”“整理进”那一条报，不重复

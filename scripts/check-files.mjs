@@ -9,6 +9,14 @@ import { CONFIRM, PRIVACY, PROJECT_STATUS, REQUIRED, TYPE_FIELDS, TYPE_NAMES, MA
 import { DATE, UNKNOWN, DATE_TAIL, CONTENT_PORTRAIT, CONTENT_MODULE, PROFILE_PLACEHOLDER, SENSITIVE_ORIGINAL, BINARY_EXT,
   hasSecret, PHONE, ID_CARD, hasContent, typeWarning, checkTodos, checkDates, stageWarning, stageAliases, badStage, tableWithHeader, lineAt } from "./check-rules.mjs";
 
+/** 链接是否指向真实文件。Codex 写本地链接常带行号（/绝对路径/文件.md:60）：真有带冒号的文件名先认它，否则去掉行号再找 */
+function linkExists(fromFile, href) {
+  if (existsSync(resolve(dirname(fromFile), href))) return true;
+  const located = isAbsolute(href) && href.match(/^(.*):[1-9]\d*$/);
+  if (!located) return false;
+  try { return statSync(located[1]).isFile(); } catch { return false; }
+}
+
 /** 就地建图时客户层 README 的“建库快照”：上次联系、下次跟进按日期规则查（空着的在 connect 阶段是错误，平时只提醒）；阶段按工作台的取值提醒 */
 export function checkSnapshot(root, layout, stage, errors, warnings) {
   const readmePath = kbReadme(join(root, layout["04-客户"]));
@@ -300,7 +308,7 @@ export function scanFiles(ctx, errors, warnings) {
     if (!checkupFile) {
       // 只看正文：开头元信息里的双链按“来源”“整理进”那一条报，不重复
       if (!obsidian && structure !== "就地建图" && /\[\[[^\]]+\]\]/.test(body(text))) warnings.push(`用了 [[双链]]，换成普通 Markdown 链接更通用：${r}`);
-      for (const href of linksIn(text)) if (!existsSync(resolve(dirname(f), href))) errors.push(`链接指向不存在的文件：${r} → ${href}`);
+      for (const href of linksIn(text)) if (!linkExists(f, href)) errors.push(`链接指向不存在的文件：${r} → ${href}`);
       // 双链只查 AI 写的：老板原有的笔记、原件层、只读文件夹里的断链（Obsidian 里常见，点了才建）不管；AGENTS.md 只看知识库那一段
       const own = !asIs && !roFolder && !(onManifest.has(r.normalize("NFC")) && r !== "AGENTS.md") && r !== "CLAUDE.md";
       if (own) checkWikiLinks(r === "AGENTS.md" ? entry.range?.text || "" : text, f, r, wiki, errors, warnings);

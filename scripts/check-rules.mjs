@@ -108,6 +108,8 @@ export function checkTodos(text, r, warnings) {
   for (const raw of text.split("\n")) {
     const line = raw.trimEnd();
     if (!line.startsWith("- [")) continue;
+    // 列表里的导航链接不是待办；链接本身由链接检查管
+    if (/^- \[(?:[^\]\\]|\\.)+\](?:\(|\[[^\]]*\])/.test(line) || /^- \[\[[^\]]+\]\]/.test(line)) continue;
     if (!TODO.test(line)) warnings.push(`待办格式不对：${r} → ${line}`);
     const due = line.match(TODO_DUE);
     if (due && !DATE.test(due[1]) && !UNKNOWN.includes(due[1])) warnings.push(`待办的截止要写成 2026-10-25（不知道写未定）：${r} → ${line}`);

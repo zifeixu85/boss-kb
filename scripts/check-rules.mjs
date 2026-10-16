@@ -130,7 +130,7 @@ export function checkDates(fm, r, errors) {
   }
 }
 
-export const stageWarning = (v, where) => `阶段‘${v}’工作台不认识，导入时会被拒：改成 ${CUSTOMER_STAGES.join(" / ")} 里的一个，或在 01-AI协作/README.md 写一张‘阶段对应’表（| 我的说法 | 工作台的阶段 |）：${where}`;
+export const stageWarning = (v, where) => `阶段‘${v}’还没登记：保留老板的叫法，在 01-AI协作/README.md 写‘阶段对应’表（| 我的说法 | 工作台的阶段 |），两列可用同一名字；搭台时同步调整表单和看板：${where}`;
 /** 01-AI协作/README.md 里“阶段对应”表的第一列（我的说法） */
 export function stageAliases(root) {
   const readme = kbReadme(join(root, "01-AI协作"));

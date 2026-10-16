@@ -506,7 +506,7 @@ test("--stage quick：只跑过 init 的库报出缺什么", () => {
   const root = tmp();
   runInit(root, { name: "王总", shop: "示例小店", date: "2026-10-20" });
   const { errors } = checkKnowledgeBase(root, { stage: "quick" });
-  for (const re of [/AGENTS\.md.*占位/, /建库档案.*占位/, /类型画像/, /老板最关心/, /采访记录/, /产品/, /客户/, /判断样本/, /真实任务/]) {
+  for (const re of [/AGENTS\.md.*占位/, /建库档案.*占位/, /类型画像/, /老板最关心/, /采访记录/, /产品/, /客户/, /判断样本/]) {
     assert.ok(has(errors, re), `应该报出 ${re}：\n${errors.join("\n")}`);
   }
   assert.deepEqual(checkKnowledgeBase(root).errors, [], "不带 --stage 时照旧没有错误");
@@ -537,7 +537,7 @@ test("--stage connect：就地建图只跑过 init 报缺什么，补齐后通�
   write(root, "客户资料/张总.md", "张总");
   runInit(root, { name: "王总", date: "2026-10-20", map: { "04-客户": "客户资料" } });
   const before = checkKnowledgeBase(root, { stage: "connect" }).errors;
-  for (const re of [/接入清单/, /建库快照/, /占位/, /真实任务/, /采访记录/]) assert.ok(has(before, re), `应该报出 ${re}：\n${before.join("\n")}`);
+  for (const re of [/接入清单/, /占位/]) assert.ok(has(before, re), `应该报出 ${re}：\n${before.join("\n")}`);
   fillAgents(root);
   const profile = readText(root, "01-AI协作/建库档案.md");
   write(root, "01-AI协作/建库档案.md", profile
@@ -754,7 +754,8 @@ test("N1 命令行：认 --stage=quick、--forbid=a,b、--name=王总；--stage 
   assert.equal(quick.status, 1);
   const out = JSON.parse(quick.stdout);
   assert.equal(out.stage, "quick");
-  assert.ok(has(out.errors, /真实任务/));
+  assert.ok(has(out.errors, /类型画像/));
+  assert.ok(!has(out.errors, /真实任务/));
   write(root, "03-生意/生意总览.md", note(base({ 类型: "生意" }), "客户 XYZ 公司"));
   const forbid = JSON.parse(cli("check.mjs", root, "--forbid=XYZ,QRS").stdout);
   assert.ok(has(forbid.errors, /“XYZ”/));
@@ -774,6 +775,9 @@ test("N3 原件清单：接入时生成（原有文件夹、只读文件夹、�
   write(root, "客户资料/报价单.xlsx", "二进制也算");
   write(root, "报价/2025报价单.md", "老报价单");
   write(root, "README.md", "# 我的资料\n");
+  write(root, "公司介绍.md", "我原有的业务介绍");
+  write(root, "随手记.md", "原有待办，接入后保留原文");
+  write(root, "密码.txt", "不读取也不登记");
   write(root, "AGENTS.md", "# 我原来的规矩\n- 回答先给结论\n");
   write(root, "CLAUDE.md", "# 我的 Claude 设置\n");
   const agents = readText(root, "AGENTS.md");
@@ -793,6 +797,9 @@ test("N3 原件清单：接入时生成（原有文件夹、只读文件夹、�
   assert.ok(text.includes(`| 客户资料/报价单.xlsx |`));
   assert.ok(text.includes(`| 报价/2025报价单.md |`));
   assert.ok(text.includes(`| README.md | ${Buffer.byteLength("# 我的资料\n")} | ${sha("# 我的资料\n")} |`));
+  assert.ok(text.includes(`| 公司介绍.md | ${Buffer.byteLength("我原有的业务介绍")} | ${sha("我原有的业务介绍")} |`));
+  assert.ok(text.includes(`| 随手记.md |`));
+  assert.doesNotMatch(text, /密码\.txt/);
   assert.ok(text.includes(`| AGENTS.md | 原长度 ${Buffer.byteLength(agents)} | ${sha(agents)} |`));
   assert.ok(text.includes(`| CLAUDE.md | 原长度 ${Buffer.byteLength(claude)} | ${sha(claude)} |`));
   assert.doesNotMatch(text, /DS_Store|README-知识库|客户资料\/README\.md|01-AI协作\/建库档案/);
@@ -936,7 +943,7 @@ test("N6 N8 N16 init 生成的说明：02 层隐私规矩、05 层装什么、�
   write(root, "AGENTS.md", "# 我原来的规矩\n");
   runInit(root, { date: "2026-10-20", updateAgents: true });
   const about = readText(root, "02-关于我/README.md");
-  assert.ok(about.includes("- 用第一人称“我”写。\n- 边界默认私密；做事与决策方式里如果有私人的事（健康、家庭、收入）也标私密，否则标内部。\n- 内容本身私密的部分（边界、健康、家庭、收入、别人的私人信息）才标私密；采访记录整份私密，不等于整理稿都私密。"), about);
+  assert.ok(about.includes("- 用第一人称“我”写。\n- 边界默认私密；做事与决策方式里如果有私人的事（健康、家庭、收入）也标私密，否则标内部。\n- 跟个人有关的文件和索引标私密；纯公司介绍、通用产品资料可标内部。采访记录整份私密，不等于整理稿都私密。"), about);
   assert.doesNotMatch(about, /从私密材料整理出的东西也是私密/);
   assert.match(readText(root, "05-方法与判断/README.md"), /- 装什么：一类工作一个文件夹（判断样本、判断规则，需要时加做法、话术）；内容很少的可以先一个文件，做法和样本写在一起；老板自己的方法放 我的方法\/\n/);
   const methods = LAYERS.find((l) => l.id === "05-方法与判断");
@@ -1092,7 +1099,7 @@ function fillHalfKb(root) {
   fillMustRead(root);
 }
 
-test("C02 体检结论：只答了一半的库“工作台能跑”，标准版还差判断样本、真实任务", () => {
+test("C02 体检结论：只答了一半的库“工作台能跑”，标准版还差判断样本，试用不作门槛", () => {
   const root = tmp();
   runInit(root, { name: "王总", shop: "示例小店", date: "2026-10-20" });
   fillHalfKb(root);
@@ -1101,8 +1108,9 @@ test("C02 体检结论：只答了一半的库“工作台能跑”，标准版�
   assert.equal(summary.workbench_ready, true, JSON.stringify(summary));
   assert.equal(summary.standard_ready, false);
   assert.ok(summary.verdict.startsWith("工作台能跑，标准版还差："), summary.verdict);
-  for (const label of ["判断样本", "真实任务", "产品"]) assert.ok(summary.missing.includes(label), `${label}：${summary.missing}`);
-  assert.ok(summary.verdict.includes("判断样本") && summary.verdict.includes("真实任务"));
+  for (const label of ["判断样本", "产品"]) assert.ok(summary.missing.includes(label), `${label}：${summary.missing}`);
+  assert.ok(summary.verdict.includes("判断样本"));
+  assert.ok(!summary.missing.includes("真实任务"));
   assert.equal(summary.counts.clients, 1);
   assert.equal(summary.skill_version, SKILL_VERSION);
   assert.ok(summary.reminders.some((r) => r.includes("新对话")));
@@ -1116,7 +1124,7 @@ test("C02 体检结论：补齐的库“标准版建好了”，只跑过 init �
   const fresh = checkKnowledgeBase(root, { stage: "quick" }).summary;
   assert.ok(fresh.verdict.startsWith("还差："), fresh.verdict);
   assert.equal(fresh.workbench_ready, false);
-  for (const label of ["地图占位", "建库档案占位", "类型画像", "老板最关心", "采访原话", "基本情况", "协作偏好", "生意总览", "近期要事", "产品", "客户", "判断样本", "真实任务"]) {
+  for (const label of ["地图占位", "建库档案占位", "类型画像", "老板最关心", "采访原话", "基本情况", "协作偏好", "生意总览", "近期要事", "产品", "客户", "判断样本"]) {
     assert.ok(fresh.missing.includes(label), `应该缺 ${label}：${fresh.missing}`);
   }
   fillQuickKb(root);
@@ -1347,17 +1355,17 @@ test("C47 客户阶段：不在 12 个里的提醒，写进“阶段对应”表
   runInit(root, { date: "2026-10-20" });
   write(root, "04-客户/甲公司.md", customer("甲公司", { 阶段: "谈判中" }));
   write(root, "04-客户/乙公司.md", customer("乙公司", { 阶段: "未知" }));
-  const w = checkKnowledgeBase(root).warnings.find((x) => x.startsWith("阶段‘谈判中’工作台不认识"));
-  assert.ok(w && w.endsWith("：04-客户/甲公司.md") && w.includes("新线索 / 需求确认"), w);
+  const w = checkKnowledgeBase(root).warnings.find((x) => x.startsWith("阶段‘谈判中’还没登记"));
+  assert.ok(w && w.endsWith("：04-客户/甲公司.md") && w.includes("保留老板的叫法"), w);
   assert.ok(!has(checkKnowledgeBase(root).warnings, /阶段‘未知’/));
   assert.ok(!has(checkKnowledgeBase(root).errors, /阶段/), "只提醒不拦");
-  write(root, "01-AI协作/README.md", `${readText(root, "01-AI协作/README.md")}\n## 阶段对应\n| 我的说法 | 工作台的阶段 |\n|---|---|\n| 谈判中 | 报价中 |\n`);
+  write(root, "01-AI协作/README.md", `${readText(root, "01-AI协作/README.md")}\n## 阶段对应\n| 我的说法 | 工作台的阶段 |\n|---|---|\n| 谈判中 | 谈判中 |\n`);
   assert.ok(!has(checkKnowledgeBase(root).warnings, /阶段‘谈判中’/));
   const kb = tmp();
   write(kb, "客户资料/张总.md", "张总");
   runInit(kb, { date: "2026-10-20", map: { "04-客户": "客户资料" } });
   write(kb, "客户资料/README.md", readText(kb, "客户资料/README.md").replace("| （待填） | | | | | | | |", "| 张总 | 客户 | 企业客户 | 跟进中 | 张总 | 未知 | 未定 | [张总.md](张总.md) |"));
-  assert.ok(has(checkKnowledgeBase(kb).warnings, /^阶段‘跟进中’工作台不认识.*客户资料\/README\.md 的建库快照 · 张总$/));
+  assert.ok(has(checkKnowledgeBase(kb).warnings, /^阶段‘跟进中’还没登记.*客户资料\/README\.md 的建库快照 · 张总$/));
   rmSync(root, { recursive: true });
   rmSync(kb, { recursive: true });
 });
@@ -1513,19 +1521,21 @@ test("C70 开头元信息的写法：列表只给来源、来源别用顿号连�
   rmSync(root, { recursive: true });
 });
 
-test("C85 接入：名字像证件、密码的原件不记文件名、不进索引；像收件箱或原件的原有文件夹提示对过去", () => {
+test("C85 接入：证件原件照实登记，密码不登记；像收件箱或原件的原有文件夹提示对过去", () => {
   const root = tmp();
   write(root, "客户资料/张总.md", "张总");
   write(root, "客户资料/证件/身份证正反面.md", "图");
   write(root, "客户资料/银行卡密码.md", "别看");
   runInit(root, { date: "2026-10-20", map: { "04-客户": "客户资料" } });
   const manifest = readText(root, "01-AI协作/原件清单.md");
-  assert.doesNotMatch(manifest, /身份证|银行卡密码/);
-  assert.match(manifest, /另有 2 份名字像证件、密码的文件没有记录（建议移出知识库）/);
-  assert.ok(!buildIndex(join(root, "客户资料")).rows.some((r) => /身份证|银行卡/.test(r)));
+  assert.match(manifest, /身份证正反面/);
+  assert.doesNotMatch(manifest, /银行卡密码/);
+  assert.match(manifest, /另有 1 份名字像密码、验证码、密钥的文件没有记录（建议移出知识库）/);
+  assert.ok(buildIndex(join(root, "客户资料")).rows.some((r) => /身份证/.test(r)));
+  assert.ok(!buildIndex(join(root, "客户资料")).rows.some((r) => /银行卡密码/.test(r)));
   const result = checkKnowledgeBase(root);
   assert.deepEqual(result.errors, []);
-  assert.ok(!has(result.warnings, /身份证正反面|银行卡密码/), result.warnings.join("\n"));
+  assert.ok(!has(result.warnings, /银行卡密码/), result.warnings.join("\n"));
   assert.ok(!has(checkKnowledgeBase(root, { stage: "connect" }).errors, /身份证正反面|银行卡密码/));
   const other = tmp();
   mkdirSync(join(other, "99-附件库"));
@@ -1545,7 +1555,7 @@ test("C27 C13 C17 C46 C52 C68 C69 C115 init 生成的说明：采访骨架、01 
   assert.match(interview, /别记/);
   assert.match(interview, /下一题：第 0 题/);
   const profile = readText(root, "01-AI协作/建库档案.md");
-  assert.match(profile, /开场第 0 题和快速版 11 题还没问/);
+  assert.match(profile, /快慢选择和本轮要问的主题还没记录/);
   assert.match(profile, /从第 0 题开始（先问哪些东西不放进来/);
   const ai = readText(root, "01-AI协作/README.md");
   for (const w of ["隐私按私密", "阶段、上次联系、下次跟进是建库快照", "1 开头的文件夹（10—19）", "原始材料（00、99）", "靠什么赚钱、最关心什么、多建了哪些文件夹、进度和缺口", "最怕漏掉什么", "| 类型 | 必填 | 可选 |", "所有类型都可以加：业务线、范围、复核、一句话"]) {
@@ -1565,7 +1575,7 @@ test("C27 C13 C17 C46 C52 C68 C69 C115 init 生成的说明：采访骨架、01 
     assert.deepEqual(fields(row[2]), OPTIONAL_FIELDS[type] || [], `${type} 的可选`);
   }
   const cust = readText(root, "04-客户/README.md");
-  assert.match(cust, /照实记：联系人、电话、地址、开票信息、生日、口味、送礼对象都可以；有联系方式、证件这类个人信息的文件标私密/);
+  assert.match(cust, /照实记：联系人、电话、地址、开票信息、生日、口味、送礼对象都可以；真实姓名、联系人、个人订单和联系方式都属于个人信息；写了这些内容的文件和索引整份标私密/);
   assert.match(cust, /往来记录只追加，一行一条：`- 日期｜渠道｜说了什么；答应：…（没有写“无”）；来源：…`/);
   for (const id of LAYER_IDS) assert.match(readText(root, `${id}/README.md`), /索引的“一句话”只写稳定的定位（是谁、怎么来的、做哪类事）/, id);
   assert.match(readText(root, "06-项目/README.md"), /`- \[ \] 事项 · 截止 2026-10-30 · 谁做 小周 · 关联 客户或项目名`/);
@@ -2906,4 +2916,19 @@ test("P4 新建的知识库里没有课程用语：标准、Obsidian、就地建
   assert.deepEqual(hits, []);
   assert.match(readText(roots[0], "01-AI协作/README.md"), /（先在对话里理清写法，再让工作台做成模块）/);
   for (const r of roots) rmSync(r, { recursive: true });
+});
+
+test("建库检查不要求先做业务任务；已有资料不要求重做采访", () => {
+  const root = tmp();
+  runInit(root, { name: "王总", date: "2026-10-20" });
+  fillQuickKb(root);
+  write(root, "01-AI协作/建库档案.md", readText(root, "01-AI协作/建库档案.md").split("\n").filter(l => !l.includes("真实任务")).join("\n"));
+  assert.deepEqual(checkKnowledgeBase(root, { stage: "quick" }).errors, []);
+  const mapped = tmp();
+  write(mapped, "资料/服务.md", "我自己的服务说明");
+  runInit(mapped, { name: "王总", date: "2026-10-20", map: { "03-生意": "资料" } });
+  const errors = checkKnowledgeBase(mapped, { stage: "connect" }).errors.join("\n");
+  assert.doesNotMatch(errors, /真实任务|采访原话|还没有记了原话|缺少“## 建库快照”/);
+  assert.equal(readText(mapped, "资料/服务.md"), "我自己的服务说明");
+  rmSync(root, { recursive: true }); rmSync(mapped, { recursive: true });
 });

@@ -39,11 +39,6 @@ export function stageCheck(stage, ctx) {
     const p = profile ? profilePlaceholders(profile.text) : [];
     if (p.length) fail("建库档案占位", `${describePlaceholders("建库档案.md", p)}。问完对应的题就填上`);
   };
-  const realTask = () => {
-    if (!/真实任务/.test(section(profile.text, "已完成") || "")) {
-      fail("真实任务", "建库档案的“已完成”里还没有“真实任务”：最后要用知识库替老板做一件真事（比如写一条客户跟进草稿），做完记一行，写上“真实任务”");
-    }
-  };
   const interviewCheck = () => {
     if (!findInterviews(root, layout).length) {
       fail("采访原话", `${layout["99-原始材料"]}/采访记录/ 下还没有记了原话的采访记录：采访时每问完一题就把原话追加进去（每题一个“## 第 N 题”小标题，或写成“原话：……”；init 建的只是空骨架）`);
@@ -77,7 +72,7 @@ export function stageCheck(stage, ctx) {
       if (!deferred && !routes.some((p) => inFolder(p, g))) warnings.push(`生长模块 ${g} 还没有一行常见任务路由：补一行，例如“<要做的事> | ${g}/README.md → …”`);
     }
     warnings.push(...emptyLayerWarnings(ctx));
-    realTask();
+    // 建库完成后，老板想试用时再跑真实任务，不是建库条件。
   } else if (stage === "connect") {
     if (structure !== "就地建图") {
       fail("不是就地建图", CONNECT_ON_STANDARD);
@@ -91,14 +86,13 @@ export function stageCheck(stage, ctx) {
     const readmePath = kbReadme(join(root, customerDir));
     const readmeName = readmePath ? basename(readmePath) : "README.md";
     const snapshot = readmePath ? section(read(readmePath), "建库快照") : null;
-    if (snapshot === null) fail("建库快照", `${customerDir}/${readmeName} 缺少“## 建库快照”：工作台靠这张表读原有客户，表头是 | 名称 | 类型 | 分组 | 阶段 | 联系人 | 上次联系 | 下次跟进 | 文件 |`);
-    else if (!(tableRows(snapshot, "名称") || []).some((row) => row.some((c) => c && c !== "（待填）")) && !((types["客户"] || 0) + (types["客户分组"] || 0))) {
-      fail("建库快照", `${customerDir}/${readmeName} 的“建库快照”还只有（待填）：把老板原有的客户一家一行填进去（客户都是新写的、带开头的档案时，至少要有一份“类型: 客户”或“客户分组”）`);
-    }
+    // 只有老板维护客户时才需要客户表；没有客户业务也能建完整基础工作台。
+    const hasClients = (types["客户"] || 0) + (types["客户分组"] || 0);
+    if (hasClients && snapshot === null) warnings.push(`${customerDir}/${readmeName} 还没有建库快照：导入原有客户时补上来源表即可`);
+    if (snapshot !== null && !(tableRows(snapshot, "名称") || []).some((row) => row.some((c) => c && c !== "（待填）")) && hasClients) warnings.push("建库快照尚未填好，导入客户前再补齐");
     placeholderErrors();
     mustRead();
-    realTask();
-    interviewCheck();
+    // 梳理已有资料不要求重做采访或先做业务任务，材料本身就是来源。
     warnings.push(...originalTodoWarnings(ctx));
   } else {
     errors.push(`不认识的 --stage：${stage}（只能是 quick 或 connect）`);

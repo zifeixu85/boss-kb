@@ -18,7 +18,7 @@ export function hashOriginal(root, full, limit) {
   }
 }
 
-/** 文件夹里一共几份文件（名字像证件、密码的文件夹只数个数；和别处一样跳过点开头的、工作台/ 这类） */
+/** 文件夹里一共几份文件（名字像密码、验证码、密钥的文件夹只数个数；和别处一样跳过点开头的、工作台/ 这类） */
 function countFiles(dirAbs) {
   let n = 0;
   for (const name of readdirSync(dirAbs)) {
@@ -31,7 +31,7 @@ function countFiles(dirAbs) {
   return n;
 }
 
-/** 文件夹下老板原有的文件（递归；不跟软链接，跳过点文件、知识库自己的 README、不读的文件夹；名字像证件、密码的只数个数） */
+/** 文件夹下老板原有的文件（递归；不跟软链接，跳过点文件、知识库自己的 README、不读的文件夹；名字像密码、验证码、密钥的只数个数） */
 function walkOriginals(root, dirAbs, out, ctx) {
   for (const name of readdirSync(dirAbs).sort()) {
     if (name.startsWith(".") || JUNK.test(name)) continue;
@@ -51,11 +51,14 @@ function walkOriginals(root, dirAbs, out, ctx) {
   }
 }
 
-/** 根目录原有的入口文件；AGENTS.md / CLAUDE.md 只记追加之前那段（已有标记段的记标记段之前；只有旧版“知识库规则”段的记到它之前） */
-function rootOriginals(root, out) {
-  for (const name of ["README.md", ...APPEND_ONLY]) {
+/** 根目录原有文件也要保留；AGENTS.md / CLAUDE.md 只记追加之前那段。 */
+function rootOriginals(root, out, ctx) {
+  for (const name of readdirSync(root).sort()) {
+    if (name.startsWith(".") || JUNK.test(name) || ctx.excluded.has(name)) continue;
     const full = join(root, name);
-    if (!existsSync(full) || !lstatSync(full).isFile()) continue;
+    if (!lstatSync(full).isFile()) continue;
+    if (SENSITIVE_NAME.test(name)) { ctx.sensitive += 1; continue; }
+    if (name === KB_README || (name === "README.md" && read(full).includes(README_MARK))) continue;
     if (!APPEND_ONLY.includes(name)) { out.set(name, { size: statSync(full).size, hash: hashOriginal(root, full) }); continue; }
     const text = readFileSync(full, "utf8");
     let at = -1;
@@ -65,7 +68,7 @@ function rootOriginals(root, out) {
   }
 }
 
-/** 要进原件清单的文件：目录对应里的原有文件夹（收件箱除外：里面的东西整理完本来就要移走）、只读文件夹、根目录原有的入口文件。不读的文件夹不进 */
+/** 要进原件清单的文件：对应的原有文件夹（收件箱除外）、只读文件夹、根目录原有文件。不读的文件夹不进。 */
 export function collectOriginals(root, layout, readonly, excluded) {
   const out = new Map();
   const ctx = { excluded: new Set(excluded), sensitive: 0 };
@@ -74,7 +77,7 @@ export function collectOriginals(root, layout, readonly, excluded) {
     const abs = join(root, f);
     if (isDir(abs) && !lstatSync(abs).isSymbolicLink()) walkOriginals(root, abs, out, ctx);
   }
-  rootOriginals(root, out);
+  rootOriginals(root, out, ctx);
   return { rows: [...out.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)), sensitive: ctx.sensitive };
 }
 
@@ -92,7 +95,7 @@ export const manifestFile = ({ date, rows, sensitive }) => `---
 
 | 文件 | 大小 | SHA-256 |
 |---|---|---|
-${rows.map(([path, r]) => `| ${cellPath(path)} | ${r.appendOnly ? `原长度 ${r.size}` : r.size} | ${r.hash} |`).join("\n")}${rows.length ? "\n" : ""}${sensitive ? `\n另有 ${sensitive} 份名字像证件、密码的文件没有记录（建议移出知识库）。\n` : ""}`;
+${rows.map(([path, r]) => `| ${cellPath(path)} | ${r.appendOnly ? `原长度 ${r.size}` : r.size} | ${r.hash} |`).join("\n")}${rows.length ? "\n" : ""}${sensitive ? `\n另有 ${sensitive} 份名字像密码、验证码、密钥的文件没有记录（建议移出知识库）。\n` : ""}`;
 
 // ───── 重新登记（--refresh-originals） ─────
 const MANIFEST_ROW = /^\|\s*(.+?)\s*\|\s*([^|]*?)\s*\|\s*([0-9a-fA-F]{64})\s*\|$/;

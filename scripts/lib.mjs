@@ -114,8 +114,8 @@ export const KB_README = "README-知识库.md";
 export const READONLY_LABEL = "原有·只读";
 /** 老板说“别看”的文件夹：AI 不打开、不搜、不列文件名 */
 export const EXCLUDE_LABEL = "原有·不读";
-/** 名字像证件、密码的文件和文件夹：不记文件名，也不提议进索引 */
-export const SENSITIVE_NAME = /身份证|护照|证件|密码|银行卡|社保/;
+/** 名字像密码、验证码、密钥的文件和文件夹：不记文件名，也不提议进索引 */
+export const SENSITIVE_NAME = /密码|验证码|密钥|私钥|secret|credentials/i;
 export const isSensitivePath = (r) => r.split("/").some((seg) => SENSITIVE_NAME.test(seg));
 
 export const rel = (root, p) => relative(root, p).split(sep).join("/");
@@ -326,11 +326,11 @@ export function mentionedIn(readmeText, readmeDir, name, { dir = false } = {}) {
  * - 有 README 的子文件夹（提到文件夹就行）；
  * - 没有 README 的子文件夹：里面的每份 .md 都要被链接到（一层层往下，直到遇到有 README 的文件夹）；里面没有 .md 的，提到文件夹就行。
  * files: false 时（原件层）只要求提到子文件夹。skipFile(绝对路径) 为真的文件不要求；folderOnly(绝对路径) 为真的子文件夹只要求提到文件夹。
- * 不跟软链接，跳过点开头的和 工作台/ 这类不归知识库管的文件夹，以及名字像证件、密码的文件和文件夹；skipDir(绝对路径) 为真的文件夹整个跳过。
+ * 不跟软链接，跳过点开头的和 工作台/ 这类不归知识库管的文件夹，以及名字像密码、验证码、密钥的文件和文件夹；skipDir(绝对路径) 为真的文件夹整个跳过。
  */
 export function missingFromIndex(dir, readmeText, { files = true, skipFile = () => false, folderOnly = () => false, skipDir = () => false } = {}) {
   const out = [];
-  // 名字像证件、密码的不提议进索引（不把这种文件名写进 README）
+  // 名字像密码、验证码、密钥的不提议进索引（不把这种文件名写进 README）
   const list = (abs) => readdirSync(abs).filter((n) => !n.startsWith(".") && !SENSITIVE_NAME.test(n)).sort((a, b) => a.localeCompare(b, "zh"));
   const isLink = (abs) => lstatSync(abs).isSymbolicLink();
   const isNote = (n) => n.toLowerCase().endsWith(".md") && !isReadme(n);

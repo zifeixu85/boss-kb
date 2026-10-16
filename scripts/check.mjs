@@ -18,8 +18,8 @@ import { stageCheck, buildSummary, summaryLine } from "./check-stage.mjs";
 export { ENTRY_DEFERRED, INFERRED_NOTE, summaryLine };
 export const STAGES = ["quick", "connect"];
 export const USAGE = `用法：node check.mjs <知识库根目录> [--stage quick|connect] [--brief] [--forbid 词1,词2]
-  --stage quick     快速版收尾检查：占位填完、必读四份、采访记录、产品、客户、判断样本、做过一件真实任务
-  --stage connect   接入已有资料（就地建图）的检查：目录对应、接入清单、建库快照、必读四份、采访记录、真实任务；标准结构用不了
+  --stage quick     快速版收尾检查：占位填完、必读四份、采访记录、产品、客户、判断样本
+  --stage connect   接入已有资料（就地建图）的检查：目录对应、接入清单、建库快照、必读四份、采访记录；标准结构用不了
   --brief           只打一行体检结论（要和 --stage 一起用；退出码不变）
   --forbid 词1,词2  这些词出现就报错（比如对外发布前不能出现的客户名）
   -h, --help        显示这段说明

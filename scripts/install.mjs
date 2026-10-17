@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // 安装或更新老板知识库 Skill（boss-kb），并在全局规则里记一句“我的知识库在哪”，让别的项目里的 AI 也能读写这个知识库。
-// 只改三类东西：boss-kb 的 Skill 文件夹；全局规则文件里两行标记之间（<!-- boss-kb 老板知识库 开始 --> 到 <!-- boss-kb 老板知识库 结束 -->，
+// 2026-10-18 起还生成一个“我的知识库”Skill（my-kb，见 mine-skill.mjs），写死知识库位置和读写规矩，让别的 AI 也知道去哪读、怎么写；全局规则那段照旧做兜底。
+// 只改四类东西：boss-kb 的 Skill 文件夹；生成的 my-kb 文件夹；全局规则文件里两行标记之间（<!-- boss-kb 老板知识库 开始 --> 到 <!-- boss-kb 老板知识库 结束 -->，
 // 旧版 boss-kb-access 留下的 <!-- 老板知识库 开始 --> 那一段原地换成新的）；旧版“知识库读写”（boss-kb-access）的 Skill 文件夹（挪进备份）。
 // 改之前先备份到 用户文件夹/.boss-kb/备份/；--dry-run 只预演、什么都不改。
 // 原来是 boss-kb-access 的 install.mjs，2026-10-11 并进 boss-kb。
@@ -11,13 +12,14 @@ import {
   SKILL_NAME, OLD_SKILL_NAME, V1_FILE, locations, normalizeInputPath, detectKb, findKbUp, upsertBlock, removeBlock, pathFromRules, blockLines,
   hasLegacyBlock, isLegacyStandardLine, cloudHints, isDir, isFile, isLink, readRuleText, writeTextAtomic, realish, isMainModule, stamp,
 } from "./access-lib.mjs";
+import { MINE_NAME, MINE_FILES, buildMineFiles, isMine, sameMine } from "./mine-skill.mjs";
 
 const SKILL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const HELP = `用法（路径写完整、加英文双引号；Windows 上别用 ~）：
-  node install.mjs --kb "<知识库文件夹>"            安装或更新老板知识库（boss-kb），并在全局规则里记下知识库在哪（Codex 一定装；电脑上有 Claude Code 也装）
+  node install.mjs --kb "<知识库文件夹>"            安装或更新老板知识库（boss-kb），生成“我的知识库”Skill（my-kb），并在全局规则里记下知识库在哪（Codex 一定装；电脑上有 Claude Code 也装）
   node install.mjs --kb "<知识库文件夹>" --dry-run  只预演，什么都不改
   node install.mjs --status                          看看现在装没装、规则里记的是哪个知识库
-  node install.mjs --uninstall [--dry-run]           卸载：拿掉规则里那一段（旧版 boss-kb-access 写的也拿掉），Skill 文件夹挪进备份（用下载来的 boss-kb 文件夹里的这份运行）
+  node install.mjs --uninstall [--dry-run]           卸载：拿掉规则里那一段（旧版 boss-kb-access 写的也拿掉），boss-kb 和“我的知识库”两个 Skill 文件夹挪进备份（用下载来的 boss-kb 文件夹里的这份运行）
 不写 --kb：当前文件夹在知识库里就用这个知识库，不在就用全局规则里记过的。
 装的时候发现旧版“知识库读写”（boss-kb-access）的文件夹，一起挪进备份。备份都在 用户文件夹/.boss-kb/备份/。
 选项：
@@ -175,6 +177,21 @@ function skillAction(tool, target, seen) {
   return { ...base, state: "update", say: `更新 ${who}（旧的先复制进备份，再原地换成新版）：${target}` };
 }
 
+/** “我的知识库”Skill：没有就生成；是安装脚本生成的、内容变了（换了知识库）就更新；别人自己放的同名文件夹不动 */
+function mineAction(tool, target, kb, seen) {
+  const files = buildMineFiles(kb);
+  const base = { kind: "mine", tool, target, files };
+  const who = `${LABEL[tool]} 的“我的知识库”（${MINE_NAME}）`;
+  if (isLink(target)) return { ...base, state: "link", say: `${who}的位置是一个链接，不动它：${target}` };
+  const real = realish(target);
+  if (seen.has(real)) return { ...base, state: "same", say: `${who}的位置和 ${LABEL[seen.get(real)]} 那份是同一个文件夹（链接过去的），不重复写：${target}` };
+  seen.set(real, tool);
+  if (!existsSync(target)) return { ...base, state: "new", say: `生成“我的知识库”Skill：写明知识库在哪、先读 AGENTS.md、怎么按规矩读写，电脑上别的 AI 也看得懂：${target}` };
+  if (!isDir(target) || !isMine(target)) return { ...base, state: "blocked", say: `${target} 已经有一个同名的、不是安装脚本生成的东西，不动它` };
+  if (sameMine(target, files)) return { ...base, state: "same", say: `${who}已经是最新的：${target}` };
+  return { ...base, state: "update", say: `更新${who}（换成现在这个知识库；旧的先复制进备份）：${target}` };
+}
+
 /** 备份里的文件夹名：codex-codex-skill（~/.codex/skills/boss-kb）、claude-claude-boss-kb-access 这样，一眼看出原来在哪。 */
 function backupName(tool, dir) {
   const where = basename(dirname(dirname(dir))).replace(/^\./, "");
@@ -234,6 +251,7 @@ export function planInstall(opts, cwd = process.cwd()) {
   const actions = [];
   const seen = new Map();
   const oldSeen = new Set();
+  const mineSeen = new Map();
   const ruleSeen = new Map();
   for (const tool of tools) {
     const skill = skillAction(tool, loc[tool].skillDir, seen);
@@ -244,6 +262,9 @@ export function planInstall(opts, cwd = process.cwd()) {
       asks.push(`旧位置（${loc.codex.legacySkillDir}）有一份同名 Skill，要挪进备份。那份可能是老板或帮你装的人自己放的，问一句再动。`);
     }
     actions.push(...oldNameActions(loc, tool, oldSeen, notes));
+    const mine = mineAction(tool, loc[tool].mineDir, kb, mineSeen);
+    actions.push(mine);
+    if (mine.state === "blocked") asks.push(`${mine.target} 已经有一个同名的（不是老板知识库安装脚本生成的），这次不写“我的知识库”Skill。先问老板这是什么；挪开以后再运行一次。全局规则那一段照常写。`);
     for (const file of loc[tool].ruleFiles) {
       // 两份规则文件链到同一个真实文件（比如 CLAUDE.md 链到 AGENTS.md）：只改一次
       const real = realish(file);
@@ -310,6 +331,13 @@ export function planUninstall() {
     const say = old ? `把${OLD_LABEL}挪进备份：${d}` : `把 ${LABEL[tool]} 的 boss-kb 挪进备份：${d}`;
     actions.push({ kind: "old", tool, target: d, state: "move", backupName: backupName(tool, d), say });
   }
+  for (const [tool, d] of [["codex", loc.codex.mineDir], ["claude", loc.claude.mineDir]]) {
+    if (isLink(d) || !isDir(d) || !isMine(d)) continue; // 别人自己放的同名文件夹、链接都不动
+    const real = realish(d);
+    if (seen.has(real)) continue;
+    seen.add(real);
+    actions.push({ kind: "old", tool, target: d, state: "move", backupName: `${tool}-${MINE_NAME}`, say: `把 ${LABEL[tool]} 的“我的知识库”（${MINE_NAME}）挪进备份：${d}` });
+  }
   const ruleSeen = new Set();
   for (const [tool, file] of [["codex", loc.codex.agentsFile], ["codex", loc.codex.overrideFile], ["claude", loc.claude.ruleFile]]) {
     if (!isFile(file)) continue;
@@ -352,6 +380,15 @@ export function apply(plan) {
       else if (a.kind === "skill" && a.state === "update") {
         keep(a.target, `${a.tool}-skill`);
         copySkill(SKILL_ROOT, a.target, true);
+      } else if (a.kind === "mine" && (a.state === "new" || a.state === "update")) {
+        if (a.state === "update") {
+          keep(a.target, `${a.tool}-${MINE_NAME}`);
+          for (const f of MINE_FILES) rmSync(join(a.target, f), { force: true });
+        }
+        for (const [f, text] of Object.entries(a.files)) {
+          mkdirSync(dirname(join(a.target, f)), { recursive: true });
+          writeTextAtomic(join(a.target, f), text);
+        }
       } else if (a.kind === "old" && a.state === "move") {
         keep(a.target, a.backupName);
         try { rmSync(a.target, { recursive: true, force: true }); } catch (e) {
@@ -420,6 +457,7 @@ export function verify(plan) {
   const problems = [];
   for (const a of plan.actions) {
     if (a.kind === "skill" && a.state !== "link" && !isFile(join(a.target, "SKILL.md"))) problems.push(`没找到 ${join(a.target, "SKILL.md")}`);
+    if (a.kind === "mine" && !["link", "blocked"].includes(a.state) && !sameMine(a.target, a.files)) problems.push(`“我的知识库”Skill 没写对：${a.target}`);
     if (a.kind !== "rule") continue;
     const text = isFile(a.file) ? readRuleText(a.file) : "";
     if (pathFromRules(text) !== plan.kb) problems.push(`${a.file} 里没读到正确的知识库路径`);
@@ -444,6 +482,8 @@ export function status() {
   const rows = [["codex", loc.codex.skillDir, [loc.codex.agentsFile, loc.codex.overrideFile]], ["claude", loc.claude.skillDir, [loc.claude.ruleFile]]];
   for (const [tool, dir, files] of rows) {
     lines.push(`- ${LABEL[tool]}：Skill ${isFile(join(dir, "SKILL.md")) ? `已装（${dir}）` : "没装"}`);
+    const mineDir = loc[tool].mineDir;
+    lines.push(`  “我的知识库”（${MINE_NAME}）：${isMine(mineDir) ? `已生成（${mineDir}）` : isDir(mineDir) ? `有一个同名的、不是安装脚本生成的（${mineDir}），没动` : "还没生成：运行安装（--kb）会生成"}`);
     for (const f of files) {
       if (!isFile(f)) { if (f !== loc.codex.overrideFile) lines.push(`  全局规则：还没有这个文件（${f}）`); continue; }
       let text;
@@ -496,7 +536,7 @@ function nextSteps(plan) {
 
 下一步（要你自己点）：
 1. 在“文稿”里新建一个空文件夹“客户方案”；${open}。
-2. 在这个项目里开新对话，问一个只有你知识库里才有的问题，比如“<某位客户>上次聊到哪了？写明出处。”能答出来、带出处，就装好了。规则和 Skill 只在新对话里生效。
+2. 在这个项目里开新对话，问一个只有你知识库里才有的问题，比如“<某位客户>上次聊到哪了？写明出处。”能答出来、带出处，就装好了。规则和 Skill 只在新对话里生效。输入 $我的，列表里能看到“我的知识库”。
 3. 再说“把刚才聊到的结论记到知识库”：它会先列要写什么，你说“确认”；弹窗问能不能改知识库时${allow}。`;
 }
 

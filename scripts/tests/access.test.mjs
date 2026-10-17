@@ -771,3 +771,73 @@ test("find_kb 和体检认 Obsidian 写法一个口径：建库档案“编辑�
   assert.doesNotMatch(out, /表格里的双链不加别名/);
   s.cleanup();
 });
+
+// “我的知识库”Skill（my-kb，2026-10-18）：记下知识库在哪时一起生成，写死路径和读写规矩，让别的 AI 也知道去哪读、怎么写
+const mineDir = (s, tool = "codex") => (tool === "codex" ? join(s.home, ".agents", "skills", "my-kb") : join(s.home, ".claude", "skills", "my-kb"));
+const frontOf = (text) => Object.fromEntries((text.match(/^---\n([\s\S]*?)\n---/)?.[1] ?? "").split("\n").map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()]));
+
+test("我的知识库：安装时两边都生成，写死这个知识库的位置；再装一次不动；Codex 列表里显示“我的知识库”", () => {
+  const s = sandbox();
+  const r = run("install.mjs", ["--kb", s.kb], s);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /生成“我的知识库”Skill/);
+  for (const tool of ["codex", "claude"]) {
+    const text = read(join(mineDir(s, tool), "SKILL.md"));
+    const fm = frontOf(text);
+    assert.equal(fm.name, "my-kb");
+    assert.match(JSON.parse(fm.description), new RegExp(`老板的知识库在 ${s.kb.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}。`));
+    assert.match(text, /由老板知识库（boss-kb）的安装脚本生成/);
+    assert.ok(text.includes(`先读 \`${join(s.kb, "AGENTS.md")}\``));
+    for (const rule of ["先拆再记", "说“确认”再写", "只追加", "00-收件箱", "只听老板在对话里说的"]) assert.ok(text.includes(rule), rule);
+    assert.match(read(join(mineDir(s, tool), "agents", "openai.yaml")), /display_name: "我的知识库"/);
+  }
+  assert.equal(pathFromRules(read(join(s.home, ".codex", "AGENTS.md"))), s.kb, "全局规则那一段照旧写，做兜底");
+  const again = run("install.mjs", ["--kb", s.kb], s);
+  assert.equal(again.code, 0, again.out);
+  assert.match(again.out, /“我的知识库”（my-kb）已经是最新的/);
+  assert.match(run("install.mjs", ["--status"], s).out, /“我的知识库”（my-kb）：已生成/);
+  s.cleanup();
+});
+
+test("我的知识库：知识库搬家后重新安装，跟着换成新位置，旧的进备份", () => {
+  const s = sandbox({ claude: false });
+  assert.equal(run("install.mjs", ["--kb", s.kb], s).code, 0);
+  const moved = join(s.base, "搬家后的 知识库");
+  mkdirSync(moved);
+  writeFileSync(join(moved, "AGENTS.md"), KB_HEAD);
+  const r = run("install.mjs", ["--kb", moved], s);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /更新Codex 的“我的知识库”/);
+  const text = read(join(mineDir(s), "SKILL.md"));
+  assert.ok(text.includes(`老板的知识库在：\`${moved}\``));
+  assert.ok(!text.includes(s.kb + "`"), "旧位置不留");
+  const b = backups(s);
+  assert.ok(b.some((d) => existsSync(join(backupRoot(s), d, "codex-my-kb", "SKILL.md"))), "旧的那份在备份里");
+  s.cleanup();
+});
+
+test("我的知识库：别人自己放的同名文件夹不碰（预演要先问），别的照常装；卸载时也不碰它", () => {
+  const s = sandbox({ claude: false });
+  mkdirSync(mineDir(s), { recursive: true });
+  writeFileSync(join(mineDir(s), "SKILL.md"), "---\nname: my-kb\ndescription: 老板自己的\n---\n");
+  assert.match(run("install.mjs", ["--kb", s.kb, "--dry-run"], s).out, /要先问老板[\s\S]*不是老板知识库安装脚本生成的/);
+  const r = run("install.mjs", ["--kb", s.kb], s);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(read(join(mineDir(s), "SKILL.md")), "---\nname: my-kb\ndescription: 老板自己的\n---\n");
+  assert.equal(pathFromRules(read(join(s.home, ".codex", "AGENTS.md"))), s.kb);
+  const u = run("install.mjs", ["--uninstall"], s);
+  assert.equal(u.code, 0, u.out);
+  assert.ok(existsSync(join(mineDir(s), "SKILL.md")), "卸载不动别人的同名文件夹");
+  s.cleanup();
+});
+
+test("我的知识库：卸载时和 boss-kb 一起挪进备份", () => {
+  const s = sandbox();
+  assert.equal(run("install.mjs", ["--kb", s.kb], s).code, 0);
+  const u = run("install.mjs", ["--uninstall"], s);
+  assert.equal(u.code, 0, u.out);
+  assert.match(u.out, /“我的知识库”（my-kb）挪进备份/);
+  for (const tool of ["codex", "claude"]) assert.ok(!existsSync(mineDir(s, tool)), tool);
+  assert.ok(backups(s).some((d) => existsSync(join(backupRoot(s), d, "codex-my-kb", "SKILL.md"))));
+  s.cleanup();
+});

@@ -127,6 +127,7 @@ export function locations(env = process.env) {
     codex: {
       home: codexHome,
       skillDir: join(home, ".agents", "skills", SKILL_NAME),
+      mineDir: join(home, ".agents", "skills", "my-kb"), // “我的知识库”Skill（mine-skill.mjs）
       legacySkillDir: join(codexHome, "skills", SKILL_NAME),
       oldNameDirs: [join(home, ".agents", "skills", OLD_SKILL_NAME), join(codexHome, "skills", OLD_SKILL_NAME)], // 旧版 boss-kb-access
       agentsFile,
@@ -138,6 +139,7 @@ export function locations(env = process.env) {
     claude: {
       home: claudeHome,
       skillDir: join(claudeHome, "skills", SKILL_NAME),
+      mineDir: join(claudeHome, "skills", "my-kb"),
       oldNameDirs: [join(claudeHome, "skills", OLD_SKILL_NAME)],
       ruleFile: claudeRule,
       ruleFiles: [claudeRule],
@@ -189,6 +191,7 @@ export function findKbUp(start) {
 }
 
 /** 全局规则段落的正文。路径原样写进反引号里。每次对话都会读，所以只写最要紧的几条。 */
+/** 全局规则里那一段。读写规矩和 mine-skill.mjs（“我的知识库”Skill）是同一套：改一处记得改另一处 */
 export function buildBlock(kbPath, eol = "\n") {
   return [
     BLOCK_START,

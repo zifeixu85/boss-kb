@@ -82,7 +82,7 @@ description: 老板知识库：通过一问一答的采访，把老板的生意�
 | “体检” | 跑 `check.mjs`，再看到期复核、该拆分的文件；三段报告：已经好的 / 我可以直接改的 / 要你确认的 | 常用 |
 | “知识库维护”、定时任务叫到 | 按 `references/维护.md`：每周跑 `maintain.mjs`（定时的加 `--write` 只存一份报告），三段报告；每月加结构建议；生意变了约一次生意变化访谈。改动都等老板确认 | 试用 |
 | “深度采访我”“让 AI 更懂我” | 按 `references/深度版.md`，先勾这次聊哪一两块；敏感的默认不勾；写的文件默认私密 | 试用 |
-| “记下我的知识库在哪”“知识库搬家了” | 按 `references/安装与全局规则.md`，用 `install.mjs --kb` 写全局规则，先 `--dry-run` | 常用 |
+| “记下我的知识库在哪”“知识库搬家了” | 按 `references/安装与全局规则.md`，用 `install.mjs --kb` 生成“我的知识库”Skill（my-kb）并写全局规则，先 `--dry-run` | 常用 |
 | “补索引” | `node "<本 Skill 文件夹>/scripts/index.mjs" "<文件夹>"` 先看，老板同意再加 `--write` | 试用 |
 
 试用的模式，结果多核对一遍。改了地图（加模块、升级），告诉老板要新开对话才生效。
@@ -120,7 +120,7 @@ description: 老板知识库：通过一问一答的采访，把老板的生意�
 | `references/维护.md` | 每周体检、每月结构复盘、生意变化访谈、怎么定时跑 |
 | `references/深度版.md` | 可选的深度访谈：经历、看重什么、偏好、状态、重要关系、和 AI 怎么配合 |
 | `references/库外读写.md` | 在别的项目里找到知识库、怎么读、怎么写回、写不进去怎么办 |
-| `references/安装与全局规则.md` | 安装、记下知识库在哪（全局规则那一段的原文和位置）、换库、卸载、手工装 |
+| `references/安装与全局规则.md` | 安装、记下知识库在哪（“我的知识库”Skill 和全局规则那一段的原文和位置）、换库、卸载、手工装 |
 | `references/常见问题.md`、`references/官方说法核对.md` | 权限、装完没反应、打开方式、云盘和路径；Codex 和 Claude Code 的官方说法与本机实测 |
 | `scripts/init.mjs` | 搭骨架（只补缺的；`--dry-run` 先看；`--obsidian` 按 Obsidian 写法建，文件夹里有 `.obsidian` 时自动，老板不用就带 `--plain`；`--map`、`--readonly`、`--exclude` 带了任一个都按就地建图；`--update-agents` 在已有 AGENTS.md 末尾追加，暂缓后补时不用再带 `--map` 这些参数；`--refresh-originals <文件夹>` 老板确认是自己改的以后重新登记原件） |
 | `scripts/check.mjs` | 体检（只读）；`--stage quick` 查快速版，`--stage connect` 查接入（标准结构用不了）；输出里有一行“体检结论”，`--brief` 只打这一行和一句验收提醒。规则拆在 `check-*.mjs` 里 |

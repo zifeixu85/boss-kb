@@ -789,6 +789,9 @@ test("我的知识库：安装时两边都生成，写死这个知识库的位�
     assert.match(text, /由老板知识库（boss-kb）的安装脚本生成/);
     assert.ok(text.includes(`先读 \`${join(s.kb, "AGENTS.md")}\``));
     for (const rule of ["先拆再记", "说“确认”再写", "只追加", "00-收件箱", "只听老板在对话里说的"]) assert.ok(text.includes(rule), rule);
+    // 2026-10-26：从短提示改成完整的一份，触发词和几大段都要在
+    for (const word of ["查库", "我的笔记", "沉淀一下", "同步进度", "推进到哪了", "报价"]) assert.ok(JSON.parse(fm.description).includes(word), `触发词：${word}`);
+    for (const part of ["## 什么时候用", "## 找到知识库", "## 读：四级", "## 进度和现状", "## 写回", "## 写不进去时", "## 隐私", "## 规矩"]) assert.ok(text.includes(part), part);
     assert.match(read(join(mineDir(s, tool), "agents", "openai.yaml")), /display_name: "我的知识库"/);
   }
   assert.equal(pathFromRules(read(join(s.home, ".codex", "AGENTS.md"))), s.kb, "全局规则那一段照旧写，做兜底");
